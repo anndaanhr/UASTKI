@@ -1,71 +1,51 @@
+# -*- coding: utf-8 -*-
+"""
+Evaluation Module — Keyword-Based Relevance Evaluation
+Evaluasi sistem pencarian hybrid dengan metrik P@K, R@K, dan MRR.
+Termasuk tracking ke DagsHub MLflow.
+"""
+
+import sys
 import numpy as np
 
-# =========================================================
-# FUNGSI METRIK EVALUASI
-# =========================================================
-
-def precision_at_k(relevant_docs, retrieved_docs, k):
-    """
-    Menghitung Precision@K
-    :param relevant_docs: Set judul dokumen yang benar-benar relevan
-    :param retrieved_docs: List judul dokumen yang dikembalikan sistem
-    :param k: Nilai K untuk batas jumlah dokumen yang dievaluasi
-    """
-    retrieved_k = retrieved_docs[:k]
-    relevant_retrieved = [doc for doc in retrieved_k if doc in relevant_docs]
-    return len(relevant_retrieved) / k if k > 0 else 0.0
-
-def average_precision(relevant_docs, retrieved_docs):
-    """
-    Menghitung Average Precision (AP) untuk satu kueri
-    """
-    hits = 0
-    sum_precs = 0
-    for i, doc in enumerate(retrieved_docs):
-        if doc in relevant_docs:
-            hits += 1
-            sum_precs += hits / (i + 1.0)
-    if not relevant_docs:
-        return 0.0
-    return sum_precs / len(relevant_docs)
-
-def mean_average_precision(queries_ap):
-    """
-    Menghitung Mean Average Precision (MAP) untuk seluruh kueri
-    """
-    if not queries_ap: return 0.0
-    return sum(queries_ap) / len(queries_ap)
-
-def dcg_at_k(relevant_docs, retrieved_docs, k):
-    """
-    Menghitung Discounted Cumulative Gain (DCG) pada peringkat K.
-    """
-    retrieved_k = retrieved_docs[:k]
-    dcg = 0.0
-    for i, doc in enumerate(retrieved_k):
-        if doc in relevant_docs:
-            rel = 1.0 # Relevansi binary (1 relevan, 0 tidak)
-            dcg += rel / np.log2(i + 2) # index dimulai dari 0 -> log2(2), log2(3), dst.
-    return dcg
-
-def ndcg_at_k(relevant_docs, retrieved_docs, k):
-    """
-    Menghitung Normalized Discounted Cumulative Gain (NDCG) pada peringkat K.
-    """
-    dcg_max = 0.0
-    # Hitung Ideal DCG (jika semua dokumen yang relevan ada di urutan teratas)
-    for i in range(min(len(relevant_docs), k)):
-        dcg_max += 1.0 / np.log2(i + 2)
-        
-    if not dcg_max:
-        return 0.0
-        
-    return dcg_at_k(relevant_docs, retrieved_docs, k) / dcg_max
-
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
 
 # =========================================================
-# DUMMY GROUND TRUTH
-# 10 Kueri dengan konteks pencarian yang berbeda
+# GROUND TRUTH: KEYWORD-BASED EVALUATION QUERIES
+# Konteks: Berita Timur Tengah
+# =========================================================
+EVAL_QUERIES = [
+    {
+        "query": "Iran nuclear deal negotiations",
+        "keywords": ["iran", "nuclear", "deal", "negotiations", "agreement"],
+    },
+    {
+        "query": "Middle East revolution political crisis",
+        "keywords": ["revolution", "crisis", "political", "middle east", "egypt", "syria"],
+    },
+    {
+        "query": "Turkey Erdogan democracy politics",
+        "keywords": ["turkey", "erdogan", "democratic", "court", "politics", "ban"],
+    },
+    {
+        "query": "Palestine Israel conflict peace",
+        "keywords": ["palestine", "israel", "conflict", "peace", "trusteeship", "normalization"],
+    },
+    {
+        "query": "US foreign policy Syria opposition",
+        "keywords": ["us", "syria", "opposition", "policy", "military", "fighting"],
+    },
+]
+
+K = 10  # Evaluasi pada top-K hasil
+
+# =========================================================
+# GROUND TRUTH: TITLE-BASED (untuk evaluasi presisi tinggi)
 # =========================================================
 GROUND_TRUTH = {
     "semantic web policies": [
@@ -105,72 +85,123 @@ GROUND_TRUTH = {
     ]
 }
 
+
+# =========================================================
+# FUNGSI METRIK EVALUASI
+# =========================================================
+
+def precision_at_k(relevance_list, k):
+    """Menghitung Precision@K dari list boolean relevansi."""
+    return sum(relevance_list[:k]) / k if k > 0 else 0.0
+
+
+def recall_at_k(relevance_list, total_relevant, k):
+    """Menghitung Recall@K dari list boolean relevansi."""
+    hits = sum(relevance_list[:k])
+    return hits / min(total_relevant, k) if total_relevant > 0 else 0.0
+
+
+def reciprocal_rank(relevance_list):
+    """Menghitung Reciprocal Rank (RR) — posisi pertama dokumen relevan."""
+    for i, v in enumerate(relevance_list):
+        if v:
+            return 1.0 / (i + 1)
+    return 0.0
+
+
+# =========================================================
+# FUNGSI EVALUASI UTAMA
+# =========================================================
+
 def evaluate_system(engine):
     """
-    Fungsi utama untuk mengevaluasi Search Engine (BM25) 
-    terhadap Ground Truth yang disiapkan.
+    Evaluasi Search Engine terhadap EVAL_QUERIES menggunakan
+    keyword-based relevance judgment.
+
+    :param engine: Instance HybridSearchEngine.
+    :return: (summary_dict, detailed_results_list)
     """
-    metrics = {
-        'Precision@5': [],
-        'Precision@10': [],
-        'AP': [],
-        'NDCG@10': []
-    }
-    
-    detailed_results = []
-    
-    for query, relevant_docs in GROUND_TRUTH.items():
-        # Lakukan pencarian, ambil top 10
-        search_data = engine.search(query, top_k=10)
+    documents = engine.documents
+
+    eval_results = []
+
+    for q in EVAL_QUERIES:
+        search_data = engine.search(q['query'], top_k=K)
         results = search_data['results']
-        retrieved_docs = [res['title'] for res in results]
-        
-        # Hitung metrik
-        p5 = precision_at_k(relevant_docs, retrieved_docs, 5)
-        p10 = precision_at_k(relevant_docs, retrieved_docs, 10)
-        ap = average_precision(relevant_docs, retrieved_docs)
-        ndcg = ndcg_at_k(relevant_docs, retrieved_docs, 10)
-        
-        metrics['Precision@5'].append(p5)
-        metrics['Precision@10'].append(p10)
-        metrics['AP'].append(ap)
-        metrics['NDCG@10'].append(ndcg)
-        
-        detailed_results.append({
-            'query': query,
-            'p5': p5,
-            'p10': p10,
-            'ap': ap,
-            'ndcg': ndcg
+        kw = q['keywords']
+
+        # Tentukan relevansi setiap hasil berdasarkan keyword matching
+        relevance = []
+        for r in results:
+            doc_text = (r.get('title', '') + " " + r.get('text', '')).lower()
+            is_relevant = any(kw_i.lower() in doc_text for kw_i in kw)
+            relevance.append(is_relevant)
+
+        # Hitung total dokumen relevan di seluruh corpus
+        total_rel = max(sum(
+            any(
+                kw_i.lower() in (
+                    d.get('title', '') + " " + d.get('content_raw', d.get('content', ''))
+                ).lower()
+                for kw_i in kw
+            )
+            for d in documents
+        ), 1)
+
+        hits = sum(relevance)
+        p_k = precision_at_k(relevance, K)
+        r_k = recall_at_k(relevance, total_rel, K)
+        rr = reciprocal_rank(relevance)
+
+        eval_results.append({
+            "query": q['query'],
+            "P@K": round(p_k, 4),
+            "R@K": round(r_k, 4),
+            "RR": round(rr, 4),
+            "Hits": hits,
         })
-        
+
     # Hitung rata-rata
+    avg_pk = float(np.mean([r['P@K'] for r in eval_results]))
+    avg_rk = float(np.mean([r['R@K'] for r in eval_results]))
+    mrr = float(np.mean([r['RR'] for r in eval_results]))
+
     summary = {
-        'MAP': float(mean_average_precision(metrics['AP'])),
-        'Avg_Precision@5': float(np.mean(metrics['Precision@5'])),
-        'Avg_Precision@10': float(np.mean(metrics['Precision@10'])),
-        'Avg_NDCG@10': float(np.mean(metrics['NDCG@10']))
+        "Avg_P@K": round(avg_pk, 4),
+        "Avg_R@K": round(avg_rk, 4),
+        "MRR": round(mrr, 4),
+        "K": K,
     }
-    
-    return summary, detailed_results
+
+    return summary, eval_results
+
+
+# =========================================================
+# MAIN: EVALUASI + MLFLOW TRACKING
+# =========================================================
 
 if __name__ == "__main__":
     from dataset import load_and_preprocess
-    from search_engine import MovieSearchEngine
-    
-    print("=== PENGUJIAN STEP 3: SISTEM EVALUASI ===")
-    
-    # Supaya cepat untuk testing, sampel 500 saja. Untuk real evaluation, gunakan seluruh dataset.
-    df = load_and_preprocess("corpus.jsonl", sample_size=500) 
-    engine = MovieSearchEngine(df)
-    
+    from search_engine import HybridSearchEngine
+
+    print("=== EVALUASI SISTEM HYBRID TF-IDF + BERT ===")
+
+    # Full dataset untuk evaluasi
+    df = load_and_preprocess()
+    engine = HybridSearchEngine(df)
+
     summary, details = evaluate_system(engine)
-    
-    print("\n--- HASIL EVALUASI KESELURUHAN ---")
-    print(f"MAP              : {summary['MAP']:.4f}")
-    print(f"Avg Precision@5  : {summary['Avg_Precision@5']:.4f}")
-    print(f"Avg Precision@10 : {summary['Avg_Precision@10']:.4f}")
-    print(f"Avg NDCG@10      : {summary['Avg_NDCG@10']:.4f}")
+
+    print(f"\n--- HASIL EVALUASI (K={K}) ---")
+    print(f"Avg P@{K}  : {summary['Avg_P@K']:.4f}")
+    print(f"Avg R@{K}  : {summary['Avg_R@K']:.4f}")
+    print(f"MRR        : {summary['MRR']:.4f}")
+
+    print("\n--- HASIL PER KUERI ---")
+    for d in details:
+        print(f"Kueri: '{d['query']}'")
+        print(f"  P@K: {d['P@K']:.4f} | R@K: {d['R@K']:.4f} | "
+              f"RR: {d['RR']:.4f} | Hits: {d['Hits']}")
 
     # =========================================================
     # MLFLOW TRACKING FOR DAGSHUB
@@ -179,25 +210,36 @@ if __name__ == "__main__":
     import mlflow
 
     print("\nMenghubungkan ke DagsHub untuk menyimpan hasil eksperimen...")
-    # Initialize DagsHub tracking (this may open a browser window for authentication)
-    dagshub.init(repo_owner='anndaanhr', repo_name='UASTKI', mlflow=True)
+    try:
+        import socket
+        # Cek koneksi ke dagshub.com secara cepat (timeout 3 detik) untuk menghindari hang lama
+        socket.create_connection(("dagshub.com", 80), timeout=3.0)
+        dagshub.init(repo_owner='Tesyaf', repo_name='UASTKI', mlflow=True)
+    except Exception as e:
+        print(f"\n⚠️ Gagal menghubungkan ke DagsHub (atau offline/timeout): {e}")
+        print("Menjalankan MLflow secara lokal...")
+        mlflow.set_tracking_uri("file:./mlruns")
 
-    with mlflow.start_run(run_name="BM25_Evaluation_Research_Papers"):
+    with mlflow.start_run(run_name="Hybrid_TFIDF_BERT_Evaluation"):
         # Log Parameters
-        mlflow.log_param("Algorithm", "Okapi BM25")
-        mlflow.log_param("NLP_Library", "NLTK")
+        mlflow.log_param("Algorithm", "Hybrid TF-IDF + Sentence-BERT")
+        mlflow.log_param("BERT_Model", "all-MiniLM-L6-v2")
+        mlflow.log_param("W_TFIDF", 0.35)
+        mlflow.log_param("W_BERT", 0.65)
+        mlflow.log_param("NLP_Library", "NLTK + sentence-transformers")
         mlflow.log_param("Stemmer", "PorterStemmer")
         mlflow.log_param("Dataset_Size", len(df))
-        
-        # Log Metrics
-        mlflow.log_metric("MAP", summary['MAP'])
-        mlflow.log_metric("Avg_Precision_at_5", summary['Avg_Precision@5'])
-        mlflow.log_metric("Avg_Precision_at_10", summary['Avg_Precision@10'])
-        mlflow.log_metric("Avg_NDCG_at_10", summary['Avg_NDCG@10'])
-        
-        print("\n✅ Metrik evaluasi berhasil diunggah ke DagsHub MLflow!")
+        mlflow.log_param("Evaluation_K", K)
 
-    print("\n--- HASIL PER KUERI ---")
-    for d in details:
-        print(f"Kueri: '{d['query']}'")
-        print(f"  P@5: {d['p5']:.2f} | P@10: {d['p10']:.2f} | AP: {d['ap']:.2f} | NDCG: {d['ndcg']:.2f}")
+        # Log Metrics
+        mlflow.log_metric("Avg_Precision_at_K", summary['Avg_P@K'])
+        mlflow.log_metric("Avg_Recall_at_K", summary['Avg_R@K'])
+        mlflow.log_metric("MRR", summary['MRR'])
+
+        # Log per-query metrics
+        for i, d in enumerate(details):
+            mlflow.log_metric(f"Q{i+1}_PK", d['P@K'])
+            mlflow.log_metric(f"Q{i+1}_RK", d['R@K'])
+            mlflow.log_metric(f"Q{i+1}_RR", d['RR'])
+
+        print("\n✅ Metrik evaluasi berhasil diunggah ke DagsHub MLflow!")

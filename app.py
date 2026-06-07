@@ -3,10 +3,11 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import uvicorn
+import time
 
 # Import custom modules
 from dataset import load_and_preprocess
-from search_engine import MovieSearchEngine
+from search_engine import HybridSearchEngine
 from evaluation import evaluate_system
 
 from contextlib import asynccontextmanager
@@ -19,17 +20,17 @@ engine = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global engine
-    print("Loading dataset and initializing BM25 Engine...")
-    print("WARNING: First boot may take 10-30 seconds to run NLTK NLP preprocessing...")
-    # Load from cache to make startup extremely fast, sample to 1000 to prevent timeout
-    df = load_and_preprocess("corpus.jsonl", sample_size=1000)
-    engine = MovieSearchEngine(df)
-    print("BM25 Engine is ready!")
+    print("Loading dataset and initializing Hybrid TF-IDF + BERT Engine...")
+    print("WARNING: First boot may take 30-60 seconds to download model & compute embeddings...")
+    # Load full dataset (no sample_size = full data)
+    df = load_and_preprocess()
+    engine = HybridSearchEngine(df)
+    print("Hybrid Engine is ready!")
     yield
     # Cleanup resources if needed on shutdown
     print("Shutting down engine...")
 
-app = FastAPI(title="Research Paper Search Engine", lifespan=lifespan)
+app = FastAPI(title="Middle East News Search Engine", lifespan=lifespan)
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -49,12 +50,10 @@ async def read_root(request: Request):
     """
     return templates.TemplateResponse(request=request, name="index.html")
 
-import time
-
 @app.get("/api/search")
 async def api_search(q: str = Query("", description="Kueri pencarian")):
     """
-    Endpoint untuk mencari film menggunakan algoritma BM25.
+    Endpoint untuk mencari dokumen menggunakan Hybrid TF-IDF + BERT.
     """
     if not q.strip():
         return {"query": q, "query_tokens": [], "execution_time_ms": 0, "results": []}
@@ -76,7 +75,6 @@ async def api_evaluate():
     """
     Endpoint untuk mengembalikan hasil evaluasi performa sistem.
     """
-    # Memanggil script evaluate_system yang menggunakan Ground Truth 10 Kueri
     summary, details = evaluate_system(engine)
     return {
         "summary": summary,

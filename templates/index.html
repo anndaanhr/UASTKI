@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ResearchArchive Search</title>
+    <title>ResearchArchive Search | Hybrid TF-IDF + BERT</title>
+    <meta name="description" content="Information Retrieval System for academic research papers using Hybrid TF-IDF and Sentence-BERT">
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -48,6 +49,7 @@
             <h1 class="logo-large">
                 <span class="g-blue">R</span><span class="g-red">e</span><span class="g-yellow">s</span><span class="g-blue">e</span><span class="g-green">a</span><span class="g-red">r</span><span class="g-blue">c</span><span class="g-yellow">h</span><span class="g-grey">Archive</span>
             </h1>
+            <p class="home-subtitle">Hybrid TF-IDF + Sentence-BERT (all-MiniLM-L6-v2)</p>
             
             <div class="search-container-large">
                 <i class="ph ph-magnifying-glass search-icon-left"></i>
@@ -67,6 +69,14 @@
         <div id="resultsArea" class="results-area hidden">
             <!-- Results Count -->
             <div id="resultsStats" class="results-stats"></div>
+
+            <!-- Query Analysis (Tokens) -->
+            <div id="queryAnalysis" class="query-analysis hidden">
+                <div class="analysis-row">
+                    <span class="analysis-label">Query Tokens:</span>
+                    <div id="tokenContainer" class="token-container"></div>
+                </div>
+            </div>
 
             <!-- AI Overview Box -->
             <div id="aiOverview" class="ai-overview hidden">
@@ -126,6 +136,24 @@
                         <span class="detail-value" id="panelLicense">License</span>
                     </div>
                 </div>
+
+                <!-- Score Breakdown (from local changes) -->
+                <div class="modal-scores">
+                    <div class="score-breakdown">
+                        <span class="score-label">TF-IDF</span>
+                        <div class="score-bar-container">
+                            <div id="panelTfidfBar" class="score-bar tfidf-bar"></div>
+                        </div>
+                        <span id="panelTfidfVal" class="score-val"></span>
+                    </div>
+                    <div class="score-breakdown">
+                        <span class="score-label">BERT</span>
+                        <div class="score-bar-container">
+                            <div id="panelBertBar" class="score-bar bert-bar"></div>
+                        </div>
+                        <span id="panelBertVal" class="score-val"></span>
+                    </div>
+                </div>
                 
                 <div class="panel-abstract">
                     <h3>Abstract</h3>
@@ -138,6 +166,17 @@
             </div>
         </aside>
     </main>
+
+    <!-- TERMINAL CONSOLE (from local changes) -->
+    <div class="terminal-container collapsed" id="terminalContainer">
+        <div class="terminal-header">
+            <span><i class="ph-fill ph-terminal"></i> Engine Logs</span>
+            <button id="toggleTerminalBtn" class="icon-btn-small"><i class="ph ph-caret-up"></i></button>
+        </div>
+        <div class="terminal-body" id="terminalBody">
+            <div class="log-line system">[SYS] Hybrid TF-IDF + BERT Engine Initialized. Waiting for queries...</div>
+        </div>
+    </div>
 
     <script src="/static/js/script.js"></script>
 </body>

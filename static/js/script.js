@@ -18,6 +18,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const resultsStats = document.getElementById("resultsStats");
     const aiOverview = document.getElementById("aiOverview");
     const aiSummaryText = document.getElementById("aiSummaryText");
+    const queryAnalysis = document.getElementById("queryAnalysis");
+    const tokenContainer = document.getElementById("tokenContainer");
     const loadingState = document.getElementById("loadingState");
     const emptyState = document.getElementById("emptyState");
     const resultsList = document.getElementById("resultsList");
@@ -25,9 +27,29 @@ document.addEventListener("DOMContentLoaded", () => {
     // Knowledge Panel
     const knowledgePanel = document.getElementById("knowledgePanel");
     const closePanelBtn = document.getElementById("closePanelBtn");
+
+    // Terminal
+    const terminalBody = document.getElementById("terminalBody");
+    const toggleTerminalBtn = document.getElementById("toggleTerminalBtn");
+    const terminalContainer = document.getElementById("terminalContainer");
     
     // --- State Variables ---
     let isHome = true;
+
+    // --- Terminal ---
+    toggleTerminalBtn.addEventListener("click", () => {
+        terminalContainer.classList.toggle("collapsed");
+        toggleTerminalBtn.innerHTML = terminalContainer.classList.contains("collapsed") ? 
+            '<i class="ph ph-caret-up"></i>' : '<i class="ph ph-caret-down"></i>';
+    });
+
+    function logToTerminal(message, type = "system") {
+        const line = document.createElement("div");
+        line.className = `log-line ${type}`;
+        line.textContent = message;
+        terminalBody.appendChild(line);
+        terminalBody.scrollTop = terminalBody.scrollHeight;
+    }
 
     // --- Event Listeners ---
 
@@ -69,6 +91,8 @@ document.addEventListener("DOMContentLoaded", () => {
     async function performSearch(query) {
         if (!query.trim()) return;
 
+        logToTerminal(`[QUERY] Searching: "${query}"`, "highlight");
+
         // Transition from Home to Results view
         if (isHome) {
             homeSearchArea.classList.add("hidden");
@@ -86,6 +110,7 @@ document.addEventListener("DOMContentLoaded", () => {
         resultsList.innerHTML = "";
         emptyState.classList.add("hidden");
         aiOverview.classList.add("hidden");
+        queryAnalysis.classList.add("hidden");
         knowledgePanel.classList.add("hidden");
         resultsStats.textContent = "";
         loadingState.classList.remove("hidden");
@@ -97,20 +122,32 @@ document.addEventListener("DOMContentLoaded", () => {
             loadingState.classList.add("hidden");
             
             if (data.results && data.results.length > 0) {
+                logToTerminal(`[OK] Found ${data.results.length} results in ${data.execution_time_ms}ms`);
+
                 // Render Stats
                 const seconds = (data.execution_time_ms / 1000).toFixed(2);
                 resultsStats.textContent = `About ${data.results.length} results (${seconds} seconds)`;
                 
+                // Render Query Tokens
+                if (data.query_tokens && data.query_tokens.length > 0) {
+                    tokenContainer.innerHTML = data.query_tokens.map(t => 
+                        `<span class="token-badge">${t}</span>`
+                    ).join('');
+                    queryAnalysis.classList.remove("hidden");
+                }
+
                 // Render AI Overview
                 generateAIOverview(query, data.query_tokens, data.results);
                 
                 // Render Results
                 renderResults(data.results, data.query_tokens);
             } else {
+                logToTerminal(`[WARN] No results found for "${query}"`, "error");
                 emptyState.classList.remove("hidden");
             }
         } catch (error) {
             console.error("Search failed:", error);
+            logToTerminal(`[ERROR] Search failed: ${error.message}`, "error");
             loadingState.classList.add("hidden");
             resultsStats.textContent = "An error occurred while searching.";
         }
@@ -130,6 +167,7 @@ document.addEventListener("DOMContentLoaded", () => {
         aiOverview.classList.remove("hidden");
     }
 
+    // Highlight search terms in the text
     function highlightText(text, tokens) {
         if (!tokens || tokens.length === 0) return text;
         let highlighted = text;
@@ -147,9 +185,10 @@ document.addEventListener("DOMContentLoaded", () => {
     function renderResults(papers, tokens) {
         resultsList.innerHTML = "";
         
-        papers.forEach(paper => {
+        papers.forEach((paper, index) => {
             const item = document.createElement("div");
-            item.className = "result-item";
+            item.className = "result-item animate-fade-up";
+            item.style.animationDelay = `${index * 0.05}s`;
             
             // Format Author
             let authorStr = paper.author;
@@ -174,9 +213,17 @@ document.addEventListener("DOMContentLoaded", () => {
                     <span class="meta-date">${paper.date || '2025'} —</span>
                     ${highlightText(paper.text, tokens)}
                 </div>
+                <div class="score-badges">
+                    <span class="score-badge combined">Score: ${paper.relevance_score.toFixed(3)}</span>
+                    <span class="score-badge tfidf">TF-IDF: ${paper.tfidf_score.toFixed(3)}</span>
+                    <span class="score-badge bert">BERT: ${paper.bert_score.toFixed(3)}</span>
+                </div>
             `;
             
-            item.querySelector('.result-title').addEventListener("click", () => openKnowledgePanel(paper, authorStr));
+            item.querySelector('.result-title').addEventListener("click", () => {
+                openKnowledgePanel(paper, authorStr);
+                logToTerminal(`[PANEL] Opened: "${paper.title.substring(0, 50)}..."`);
+            });
             
             resultsList.appendChild(item);
         });
@@ -184,11 +231,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function openKnowledgePanel(paper, authorStr) {
         document.getElementById("panelTitle").textContent = paper.title;
+        document.getElementById("panelSubtitle").textContent = `Score: ${paper.relevance_score.toFixed(4)}`;
         document.getElementById("panelAuthors").textContent = authorStr || "Unknown";
         document.getElementById("panelDate").textContent = paper.date || "Unknown Date";
         document.getElementById("panelSource").textContent = paper.source || "Unknown";
         document.getElementById("panelLicense").textContent = paper.license || "Standard";
         document.getElementById("panelAbstractText").textContent = paper.text;
+
+        // Score breakdown bars
+        const tfidfPct = Math.round(paper.tfidf_score * 100);
+        const bertPct = Math.round(paper.bert_score * 100);
+
+        document.getElementById("panelTfidfBar").style.width = tfidfPct + "%";
+        document.getElementById("panelTfidfVal").textContent = paper.tfidf_score.toFixed(4);
+        document.getElementById("panelBertBar").style.width = bertPct + "%";
+        document.getElementById("panelBertVal").textContent = paper.bert_score.toFixed(4);
         
         const urlBtn = document.getElementById("panelUrl");
         if(paper.url) {
