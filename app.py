@@ -10,6 +10,8 @@ from search_engine import MovieSearchEngine
 from evaluation import evaluate_system
 
 from contextlib import asynccontextmanager
+from fastapi.responses import PlainTextResponse
+import traceback
 
 # Global Search Engine Instance
 engine = None
@@ -29,9 +31,16 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Research Paper Search Engine", lifespan=lifespan)
 
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return PlainTextResponse(f"Internal Server Error: {str(exc)}\n\n{traceback.format_exc()}", status_code=500)
+
+import os
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Setup statics and templates
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
