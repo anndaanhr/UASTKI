@@ -155,7 +155,32 @@ if __name__ == "__main__":
     print(f"Avg Precision@5  : {summary['Avg_Precision@5']:.4f}")
     print(f"Avg Precision@10 : {summary['Avg_Precision@10']:.4f}")
     print(f"Avg NDCG@10      : {summary['Avg_NDCG@10']:.4f}")
-    
+
+    # =========================================================
+    # MLFLOW TRACKING FOR DAGSHUB
+    # =========================================================
+    import dagshub
+    import mlflow
+
+    print("\nMenghubungkan ke DagsHub untuk menyimpan hasil eksperimen...")
+    # Initialize DagsHub tracking (this may open a browser window for authentication)
+    dagshub.init(repo_owner='anndaanhr', repo_name='UASTKI', mlflow=True)
+
+    with mlflow.start_run(run_name="BM25_Evaluation_Research_Papers"):
+        # Log Parameters
+        mlflow.log_param("Algorithm", "Okapi BM25")
+        mlflow.log_param("NLP_Library", "NLTK")
+        mlflow.log_param("Stemmer", "PorterStemmer")
+        mlflow.log_param("Dataset_Size", len(df))
+        
+        # Log Metrics
+        mlflow.log_metric("MAP", summary['MAP'])
+        mlflow.log_metric("Avg_Precision_at_5", summary['Avg_Precision@5'])
+        mlflow.log_metric("Avg_Precision_at_10", summary['Avg_Precision@10'])
+        mlflow.log_metric("Avg_NDCG_at_10", summary['Avg_NDCG@10'])
+        
+        print("\n✅ Metrik evaluasi berhasil diunggah ke DagsHub MLflow!")
+
     print("\n--- HASIL PER KUERI ---")
     for d in details:
         print(f"Kueri: '{d['query']}'")
