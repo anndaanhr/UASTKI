@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Indonesian Movie Search | BM25</title>
+    <title>Research Paper Search | BM25</title>
     <!-- Inter Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,14 +20,14 @@
         <!-- HEADER & SEARCH BAR -->
         <header class="header">
             <h1 class="logo">
-                <i class="ph-fill ph-film-strip"></i>
-                Indo<span class="highlight">Movies</span>
+                <i class="ph-fill ph-book-open"></i>
+                Research<span class="highlight">Archive</span>
             </h1>
             <p class="subtitle">Information Retrieval System based on Okapi BM25</p>
 
             <div class="search-container">
                 <i class="ph ph-magnifying-glass search-icon"></i>
-                <input type="text" id="searchInput" placeholder="Search for Indonesian movies, genres, or plots..." autocomplete="off">
+                <input type="text" id="searchInput" placeholder="Search for research papers, authors, or topics..." autocomplete="off">
                 <button id="searchBtn" class="primary-btn">Search</button>
             </div>
         </header>
@@ -64,8 +64,8 @@
             <!-- Empty State -->
             <div id="emptyState" class="empty-state hidden">
                 <i class="ph-fill ph-ghost"></i>
-                <h3>No movies found</h3>
-                <p>Try different keywords or check out some action movies.</p>
+                <h3>No papers found</h3>
+                <p>Try different keywords or topics.</p>
             </div>
             
             <!-- Loading State -->
@@ -83,23 +83,23 @@
             <div class="modal-body">
                 <h2 id="modalTitle" class="modal-title"></h2>
                 <div class="modal-meta">
-                    <span id="modalYear" class="badge"></span>
-                    <span id="modalRating" class="badge badge-warning"></span>
+                    <span id="modalDate" class="badge"></span>
+                    <span id="modalLicense" class="badge badge-warning"></span>
                     <span id="modalScore" class="badge badge-success"></span>
                 </div>
                 
                 <div class="modal-grid">
                     <div class="modal-col">
-                        <h4>Directors</h4>
-                        <p id="modalDirectors"></p>
+                        <h4>Source</h4>
+                        <p id="modalSource"></p>
                     </div>
                     <div class="modal-col">
-                        <h4>Cast</h4>
-                        <p id="modalActors"></p>
+                        <h4>Author</h4>
+                        <p id="modalAuthor"></p>
                     </div>
                 </div>
 
-                <h4>Synopsis</h4>
+                <h4>Abstract / Text</h4>
                 <p id="modalDesc" class="modal-desc"></p>
             </div>
         </div>

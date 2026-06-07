@@ -145,24 +145,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function openModal(movie, tokens) {
         document.getElementById("modalTitle").innerHTML = highlightText(movie.title, tokens);
-        document.getElementById("modalYear").textContent = movie.year || "Unknown Year";
-        document.getElementById("modalRating").textContent = movie.rating || "Unrated";
+        document.getElementById("modalDate").textContent = movie.date || "Unknown Date";
+        
+        let licenseHTML = movie.license || "Unknown License";
+        if(movie.url) {
+            licenseHTML += ` | <a href="${movie.url}" target="_blank" style="color: inherit; text-decoration: underline;">View URL</a>`;
+        }
+        document.getElementById("modalLicense").innerHTML = licenseHTML;
+        
         document.getElementById("modalScore").innerHTML = `<i class="ph-fill ph-target"></i> Score: ${movie.relevance_score.toFixed(3)}`;
         
-        // Clean up array string if it exists
-        let directorsStr = movie.directors;
-        let actorsStr = movie.actors;
-        
-        if (typeof directorsStr === 'string' && directorsStr.startsWith('[')) {
-            try { directorsStr = JSON.parse(directorsStr.replace(/'/g, '"')).join(', '); } catch(e){}
-        }
-        if (typeof actorsStr === 'string' && actorsStr.startsWith('[')) {
-            try { actorsStr = JSON.parse(actorsStr.replace(/'/g, '"')).join(', '); } catch(e){}
+        let authorStr = movie.author;
+        if (typeof authorStr === 'string' && authorStr.startsWith('[')) {
+            try { authorStr = JSON.parse(authorStr.replace(/'/g, '"')).join(', '); } catch(e){}
         }
 
-        document.getElementById("modalDirectors").textContent = directorsStr || "Unknown";
-        document.getElementById("modalActors").textContent = actorsStr || "Unknown";
-        document.getElementById("modalDesc").innerHTML = highlightText(movie.description, tokens);
+        document.getElementById("modalSource").textContent = movie.source || "Unknown";
+        document.getElementById("modalAuthor").textContent = authorStr || "Unknown";
+        document.getElementById("modalDesc").innerHTML = highlightText(movie.text, tokens);
         
         movieModal.classList.remove("hidden");
         // small delay to allow display:block to apply before animating opacity
@@ -200,14 +200,14 @@ document.addEventListener("DOMContentLoaded", () => {
             card.innerHTML = `
                 <div class="movie-title">${highlightText(movie.title, tokens)}</div>
                 <div class="movie-meta">
-                    <span class="movie-year">${movie.year || 'Unknown'}</span>
-                    <span class="movie-genre">${movie.genre.split(',')[0] || 'Movie'}</span>
+                    <span class="movie-year">${movie.date || 'Unknown'}</span>
+                    <span class="movie-genre">${movie.source || 'Paper'}</span>
                     <span class="movie-score">
                         <i class="ph-fill ph-target"></i> 
                         ${movie.relevance_score.toFixed(2)}
                     </span>
                 </div>
-                <div class="movie-desc">${highlightText(movie.description, tokens)}</div>
+                <div class="movie-desc">${highlightText(movie.text, tokens)}</div>
             `;
             
             card.addEventListener("click", () => openModal(movie, tokens));

@@ -68,36 +68,24 @@ def ndcg_at_k(relevant_docs, retrieved_docs, k):
 # 10 Kueri dengan konteks pencarian yang berbeda
 # =========================================================
 GROUND_TRUTH = {
-    "film horor seram tentang hantu": [
-        "Mangkujiwo", "May the Devil Take You: Chapter Two", 
-        "Rasuk 2", "Surat dari Kematian"
+    "semantic web policies": [
+        "Verification, Validation and Integrity of Distributed and Interchanged Rule Based Policies and Contracts in the Semantic Web"
     ],
-    "cerita cinta SMA yang romantis": [
-        "Dilan 1991", "Dilan 1990", "Mariposa", "Milea"
+    "electronic government in saudi arabia": [
+        "Electronic-government in Saudi Arabia: A positive revolution in the peninsula",
+        "EGovernment Stage Model: Evaluating the Rate of Web Development Progress of Government Websites in Saudi Arabia",
+        "Success Factors Contributing to eGovernment Adoption in Saudi Arabia: G2C approach"
     ],
-    "film komedi lucu bikin ngakak": [
-        "Guru-Guru Gokil", "Toko Barang Mantan", "Kapal Goyang Kapten"
+    "online retailing saudi arabia": [
+        "A Conceptual Framework for the Promotion of Trusted Online Retailing Environment in Saudi Arabia",
+        "Factors unflinching e-commerce adoption by retailers in Saudi Arabia: Qual Analysis",
+        "Factors influencing E-commerce Adoption by Retailers in Saudi Arabia"
     ],
-    "petualangan anak muda": [
-        "Anak Garuda", "Titus: Mystery of the Enygma"
+    "scientific communication kyrgyz republic": [
+        "Toward a New Policy for Scientific and Technical Communication: the Case of Kyrgyz Republic"
     ],
-    "cerita sedih keluarga": [
-        "Nanti Kita Cerita Tentang Hari Ini", "Keluarga Cemara", "Si Doel the Movie"
-    ],
-    "kisah pahlawan indonesia": [
-        "Gundala", "Sultan Agung: Tahta, Perjuangan, Cinta", "Wiro Sableng 212"
-    ],
-    "misteri pembunuhan": [
-        "4 Mantan", "Pintu Merah"
-    ],
-    "film dokumenter biografi": [
-        "Habibie & Ainun 3", "Susi Susanti: Love All", "A Man Called Ahok"
-    ],
-    "aksi perampokan dan laga": [
-        "Hit & Run", "Darah Daging", "The Night Comes for Us"
-    ],
-    "cinta beda agama": [
-        "Ajari Aku Islam"
+    "middle east revolutions virtual communities": [
+        "Virtual communities? the middle east revolutions at the Guardian forum: Comment Is Free"
     ]
 }
 
@@ -157,7 +145,7 @@ if __name__ == "__main__":
     print("=== PENGUJIAN STEP 3: SISTEM EVALUASI ===")
     
     # Supaya cepat untuk testing, sampel 500 saja. Untuk real evaluation, gunakan seluruh dataset.
-    df = load_and_preprocess("indonesian_movies.csv", sample_size=500) 
+    df = load_and_preprocess("corpus.jsonl", sample_size=500) 
     engine = MovieSearchEngine(df)
     
     summary, details = evaluate_system(engine)

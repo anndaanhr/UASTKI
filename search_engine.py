@@ -48,7 +48,7 @@ class MovieSearchEngine:
         ).head(top_k)
         
         # Mengembalikan hasil dan metadata
-        columns_to_return = ['title', 'year', 'genre', 'description', 'directors', 'actors', 'rating', 'relevance_score']
+        columns_to_return = ['id', 'title', 'url', 'source', 'author', 'date', 'license', 'text', 'relevance_score']
         
         # Ensure columns exist, if not fill with default to prevent KeyError
         for col in columns_to_return:
@@ -69,14 +69,14 @@ if __name__ == "__main__":
     print("=== PENGUJIAN STEP 2: SEARCH ENGINE BM25 ===")
     
     # Gunakan sampel data untuk pengujian lokal agar lebih cepat
-    df = load_and_preprocess("indonesian_movies.csv", sample_size=100) 
+    df = load_and_preprocess("corpus.jsonl", sample_size=100) 
     
     engine = MovieSearchEngine(df)
     
     queries_to_test = [
-        "cinta romantis SMA",
-        "film hantu menyeramkan",
-        "persahabatan dan komedi"
+        "semantic web policies",
+        "electronic government in saudi arabia",
+        "neural network architectures"
     ]
     
     for q in queries_to_test:
@@ -84,7 +84,9 @@ if __name__ == "__main__":
         results = engine.search(q, top_k=3)
         if not results:
             print("  -> Tidak ada dokumen yang relevan.")
-        for rank, res in enumerate(results, 1):
-            print(f"  {rank}. {res['title']} (Score: {res['relevance_score']:.4f})")
-            print(f"     Genre: {res['genre']}")
-            print(f"     Desc : {res['description'][:100]}...")
+        else:
+            for rank, res in enumerate(results['results'], 1):
+                print(f"  {rank}. {res['title']} (Score: {res['relevance_score']:.4f})")
+                print(f"     Source: {res['source']}")
+                print(f"     Text  : {res['text'][:100]}...")
+

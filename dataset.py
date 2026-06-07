@@ -1,18 +1,28 @@
 import pandas as pd
 import re
-from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
-from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
+import os
+import ast
+import nltk
+from nltk.corpus import stopwords
+from nltk.stem import PorterStemmer
+
+# Pastikan resource NLTK sudah didownload
+try:
+    nltk.data.find('corpora/stopwords')
+except LookupError:
+    nltk.download('stopwords')
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt')
 
 class TextPreprocessor:
     def __init__(self):
-        # Inisialisasi Stemmer
-        stemmer_factory = StemmerFactory()
-        self.stemmer = stemmer_factory.create_stemmer()
+        # Inisialisasi Stemmer bahasa Inggris
+        self.stemmer = PorterStemmer()
         
-        # Inisialisasi Stopword Remover
-        stopword_factory = StopWordRemoverFactory()
-        # Bisa juga menambahkan stopword kustom jika perlu
-        self.stopwords = stopword_factory.get_stop_words()
+        # Inisialisasi Stopword Remover bahasa Inggris
+        self.stopwords = set(stopwords.words('english'))
         
     def preprocess(self, text):
         if not isinstance(text, str):
@@ -32,17 +42,11 @@ class TextPreprocessor:
         tokens = text.split()
         tokens = [word for word in tokens if word not in self.stopwords]
         
-        # Gabungkan kembali untuk proses stemming
-        text = ' '.join(tokens)
-        
-        # 5. Stemming (Sastrawi)
-        text = self.stemmer.stem(text)
+        # 5. Stemming (NLTK PorterStemmer)
+        stemmed_tokens = [self.stemmer.stem(word) for word in tokens]
         
         # Return tokens akhir
-        return text.split()
-
-import os
-import ast
+        return stemmed_tokens
 
 def load_and_preprocess(filepath, sample_size=None, cache_path="preprocessed_dataset.csv"):
     if os.path.exists(cache_path):
@@ -52,54 +56,60 @@ def load_and_preprocess(filepath, sample_size=None, cache_path="preprocessed_dat
         df['tokens'] = df['tokens'].apply(ast.literal_eval)
         
         # FIX: Isi nilai NaN dengan string kosong agar tidak error saat di-convert ke JSON
+        df['id'] = df['id'].fillna('')
         df['title'] = df['title'].fillna('')
-        df['genre'] = df['genre'].fillna('')
-        df['description'] = df['description'].fillna('')
-        df['directors'] = df['directors'].fillna('Unknown')
-        df['actors'] = df['actors'].fillna('Unknown')
-        df['year'] = df['year'].fillna('Unknown')
-        df['rating'] = df['rating'].fillna('Unrated')
+        df['url'] = df['url'].fillna('')
+        df['source'] = df['source'].fillna('Unknown')
+        df['author'] = df['author'].fillna('Unknown')
+        df['date'] = df['date'].fillna('Unknown')
+        df['license'] = df['license'].fillna('Unknown')
+        df['text'] = df['text'].fillna('')
         
         if sample_size:
             df = df.head(sample_size)
         return df
 
     print(f"Loading dataset from {filepath}...")
-    df = pd.read_csv(filepath)
+    # Baca format JSONL
+    df = pd.read_json(filepath, lines=True)
     
-    # Isi nilai NaN dengan string kosong
+    # Isi nilai NaN dengan string default
+    df['id'] = df['id'].fillna('')
     df['title'] = df['title'].fillna('')
-    df['genre'] = df['genre'].fillna('')
-    df['description'] = df['description'].fillna('')
+    df['url'] = df['url'].fillna('')
+    df['source'] = df['source'].fillna('Unknown')
+    df['author'] = df['author'].fillna('Unknown')
+    df['date'] = df['date'].fillna('Unknown')
+    df['license'] = df['license'].fillna('Unknown')
+    df['text'] = df['text'].fillna('')
     
     if sample_size:
         df = df.head(sample_size)
         
-    # Menggabungkan teks yang relevan untuk pencarian
-    df['search_content'] = df['title'] + " " + df['genre'] + " " + df['description']
+    # Menggabungkan teks yang relevan untuk pencarian (title, source, author, text)
+    df['search_content'] = df['title'] + " " + df['source'] + " " + df['author'] + " " + df['text']
     
     preprocessor = TextPreprocessor()
     
     print("Mulai preprocessing teks (Cleansing, Stopword Removal, Stemming)...")
-    print("Mohon tunggu, proses Stemming Sastrawi membutuhkan waktu.")
     
     # Menerapkan preprocessing
     df['tokens'] = df['search_content'].apply(preprocessor.preprocess)
     
     print("Preprocessing selesai!")
     
-    if not sample_size:
-        # Save to cache if processing full dataset
-        print(f"Saving preprocessed dataset to {cache_path}...")
-        df.to_csv(cache_path, index=False)
+    # Save to cache 
+    print(f"Saving preprocessed dataset to {cache_path}...")
+    df.to_csv(cache_path, index=False)
         
     return df
 
 if __name__ == "__main__":
     # Test script dengan 5 data pertama agar cepat
-    test_df = load_and_preprocess("indonesian_movies.csv", sample_size=5)
+    test_df = load_and_preprocess("corpus.jsonl", sample_size=5)
     
     for idx, row in test_df.iterrows():
         print(f"Title: {row['title']}")
-        print(f"Tokens: {row['tokens']}")
+        print(f"Tokens: {row['tokens'][:10]}...") # Hanya print 10 token pertama agar tidak spam
         print("-" * 50)
+

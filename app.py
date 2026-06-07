@@ -18,15 +18,16 @@ engine = None
 async def lifespan(app: FastAPI):
     global engine
     print("Loading dataset and initializing BM25 Engine...")
-    # Load from cache to make startup extremely fast
-    df = load_and_preprocess("indonesian_movies.csv")
+    print("WARNING: First boot may take 10-30 seconds to run NLTK NLP preprocessing...")
+    # Load from cache to make startup extremely fast, sample to 1000 to prevent timeout
+    df = load_and_preprocess("corpus.jsonl", sample_size=1000)
     engine = MovieSearchEngine(df)
     print("BM25 Engine is ready!")
     yield
     # Cleanup resources if needed on shutdown
     print("Shutting down engine...")
 
-app = FastAPI(title="Indonesian Movie Search Engine", lifespan=lifespan)
+app = FastAPI(title="Research Paper Search Engine", lifespan=lifespan)
 
 # Setup statics and templates
 app.mount("/static", StaticFiles(directory="static"), name="static")

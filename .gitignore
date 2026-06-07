@@ -6,3 +6,6 @@ env/
 .venv/
 preprocessed_dataset.csv
 .DS_Store
+
+corpus.jsonl
+preprocessed_dataset.csv
