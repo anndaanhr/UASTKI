@@ -47,7 +47,7 @@ async def read_root(request: Request):
     """
     Menampilkan halaman utama Dashboard (Web UI).
     """
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="index.html")
 
 import time
 
