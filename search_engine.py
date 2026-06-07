@@ -7,6 +7,11 @@ untuk meningkatkan akurasi pencarian dokumen berita Timur Tengah.
 
 import numpy as np
 import torch
+
+# Fallback for compatibility: newer transformers versions expect torch.float8_e8m0fnu
+if not hasattr(torch, "float8_e8m0fnu"):
+    setattr(torch, "float8_e8m0fnu", torch.float32)
+
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
