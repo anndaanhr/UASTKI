@@ -86,6 +86,22 @@ GROUND_TRUTH = {
     ],
     "middle east revolutions virtual communities": [
         "Virtual communities? the middle east revolutions at the Guardian forum: Comment Is Free"
+    ],
+    "b2c e-commerce saudi arabia": [
+        "Wheel of B2C E-commerce Development in Saudi Arabia"
+    ],
+    "covid 19 cases saudi arabia": [
+        "Google Searches and COVID-19 Cases in Saudi Arabia: A Correlation Study",
+        "Weather impact on daily cases of COVID-19 in Saudi Arabia using machine learning"
+    ],
+    "machine learning public policy": [
+        "Explainable Machine Learning for Public Policy: Use Cases, Gaps, and Research Directions"
+    ],
+    "scientific mobility middle east": [
+        "Analysing Scientific Mobility and Collaboration in the Middle East and North Africa"
+    ],
+    "m-commerce saudi arabia private sector": [
+        "Critical success factors for m-commerce in Saudi Arabia's private sector -- a multiple case study analysis"
     ]
 }
 

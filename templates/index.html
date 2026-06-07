@@ -3,118 +3,141 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Research Paper Search | BM25</title>
-    <!-- Inter Font -->
+    <title>ResearchArchive Search</title>
+    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
     <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <!-- Custom CSS -->
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
-<body>
-    <div class="ambient-glow"></div>
+<body class="home-state">
 
-    <main class="container">
-        <!-- HEADER & SEARCH BAR -->
-        <header class="header">
-            <h1 class="logo">
-                <i class="ph-fill ph-book-open"></i>
-                Research<span class="highlight">Archive</span>
+    <!-- TOP HEADER (Only visible after search) -->
+    <header id="topHeader" class="top-header hidden">
+        <div class="header-main">
+            <h1 class="logo-small" onclick="window.location.reload()">
+                <span class="g-blue">R</span><span class="g-red">e</span><span class="g-yellow">s</span><span class="g-blue">e</span><span class="g-green">a</span><span class="g-red">r</span><span class="g-blue">c</span><span class="g-yellow">h</span>Archive
             </h1>
-            <p class="subtitle">Information Retrieval System based on Okapi BM25</p>
-
-            <div class="search-container">
-                <i class="ph ph-magnifying-glass search-icon"></i>
-                <input type="text" id="searchInput" placeholder="Search for research papers, authors, or topics..." autocomplete="off">
-                <button id="searchBtn" class="primary-btn">Search</button>
+            <div class="search-container-small">
+                <input type="text" id="searchInputTop" placeholder="Search research papers..." autocomplete="off">
+                <div class="search-icons">
+                    <i id="clearBtnTop" class="ph ph-x clear-icon hidden"></i>
+                    <div class="divider"></div>
+                    <i id="searchBtnTop" class="ph ph-magnifying-glass search-icon-btn"></i>
+                </div>
             </div>
-        </header>
-
-        <!-- DASHBOARD BENTO GRID (Evaluation Metrics) -->
-        <section class="dashboard-bento" id="bentoGrid">
-            <div class="bento-header">
-                <h2><i class="ph-fill ph-chart-polar"></i> System Performance Dashboard</h2>
-                <button id="refreshEvalBtn" class="icon-btn" title="Refresh Evaluation"><i class="ph ph-arrows-clockwise"></i></button>
+            <div class="header-actions">
+                <div class="profile-circle">A</div>
             </div>
+        </div>
+        <div class="header-tabs">
+            <div class="tab active"><i class="ph ph-magnifying-glass"></i> All</div>
+            <div class="tab"><i class="ph ph-article"></i> Scholarly</div>
+            <div class="tab"><i class="ph ph-image"></i> Images</div>
+            <div class="tab"><i class="ph ph-video-camera"></i> Videos</div>
+            <div class="tab"><i class="ph ph-dots-three-circle"></i> More</div>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <!-- HOME SEARCH AREA (Centered initially) -->
+        <div id="homeSearchArea" class="home-search-area">
+            <h1 class="logo-large">
+                <span class="g-blue">R</span><span class="g-red">e</span><span class="g-yellow">s</span><span class="g-blue">e</span><span class="g-green">a</span><span class="g-red">r</span><span class="g-blue">c</span><span class="g-yellow">h</span><span class="g-grey">Archive</span>
+            </h1>
             
-            <div class="bento-grid">
-                <!-- Skeleton Loading State -->
-                <div class="bento-item skeleton"></div>
-                <div class="bento-item skeleton"></div>
-                <div class="bento-item skeleton"></div>
-                <div class="bento-item skeleton"></div>
-            </div>
-        </section>
-
-        <!-- SEARCH RESULTS -->
-        <section class="results-section">
-            <div class="results-header" id="resultsHeader" class="hidden">
-                <h2 id="resultsCount"></h2>
-                <div id="queryAnalysis" class="query-analysis hidden">
-                    <!-- Dynamic analysis -->
+            <div class="search-container-large">
+                <i class="ph ph-magnifying-glass search-icon-left"></i>
+                <input type="text" id="searchInputHome" placeholder="Search research papers, topics, authors..." autocomplete="off">
+                <div class="search-icons">
+                    <i id="clearBtnHome" class="ph ph-x clear-icon hidden"></i>
                 </div>
             </div>
             
-            <div id="resultsGrid" class="results-grid">
-                <!-- Dynamic Results Here -->
+            <div class="home-buttons">
+                <button id="searchBtnHome" class="google-btn">Google Search</button>
+                <button class="google-btn">I'm Feeling Lucky</button>
             </div>
-            
-            <!-- Empty State -->
-            <div id="emptyState" class="empty-state hidden">
-                <i class="ph-fill ph-ghost"></i>
-                <h3>No papers found</h3>
-                <p>Try different keywords or topics.</p>
+        </div>
+
+        <!-- SEARCH RESULTS AREA -->
+        <div id="resultsArea" class="results-area hidden">
+            <!-- Results Count -->
+            <div id="resultsStats" class="results-stats"></div>
+
+            <!-- AI Overview Box -->
+            <div id="aiOverview" class="ai-overview hidden">
+                <div class="ai-header">
+                    <i class="ph-fill ph-sparkle"></i> AI Overview
+                </div>
+                <div class="ai-body">
+                    <p id="aiSummaryText">Generating overview...</p>
+                </div>
             </div>
-            
+
             <!-- Loading State -->
             <div id="loadingState" class="loading-state hidden">
-                <div class="spinner"></div>
-                <p>Searching database...</p>
+                <div class="google-loader"></div>
             </div>
-        </section>
-    </main>
 
-    <!-- GLASSMORPHISM MODAL -->
-    <div id="movieModal" class="modal-overlay hidden">
-        <div class="modal-content">
-            <button id="closeModalBtn" class="close-btn"><i class="ph ph-x"></i></button>
-            <div class="modal-body">
-                <h2 id="modalTitle" class="modal-title"></h2>
-                <div class="modal-meta">
-                    <span id="modalDate" class="badge"></span>
-                    <span id="modalLicense" class="badge badge-warning"></span>
-                    <span id="modalScore" class="badge badge-success"></span>
+            <!-- Empty State -->
+            <div id="emptyState" class="empty-state hidden">
+                <p>Your search did not match any documents.</p>
+                <p>Suggestions:</p>
+                <ul>
+                    <li>Make sure all words are spelled correctly.</li>
+                    <li>Try different keywords.</li>
+                    <li>Try more general keywords.</li>
+                </ul>
+            </div>
+
+            <!-- Vertical Results List -->
+            <div id="resultsList" class="results-list">
+                <!-- Results injected here by JS -->
+            </div>
+        </div>
+
+        <!-- KNOWLEDGE PANEL (Right Sidebar) -->
+        <aside id="knowledgePanel" class="knowledge-panel hidden">
+            <button id="closePanelBtn" class="close-panel"><i class="ph ph-x"></i></button>
+            <div class="panel-content">
+                <div class="panel-header">
+                    <h2 id="panelTitle">Paper Title</h2>
+                    <p id="panelSubtitle">Research Paper</p>
+                </div>
+                <div class="panel-details">
+                    <div class="detail-row">
+                        <span class="detail-label">Authors:</span>
+                        <span class="detail-value" id="panelAuthors">Author Name</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Published:</span>
+                        <span class="detail-value" id="panelDate">Date</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Source:</span>
+                        <span class="detail-value" id="panelSource">Source</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">License:</span>
+                        <span class="detail-value" id="panelLicense">License</span>
+                    </div>
                 </div>
                 
-                <div class="modal-grid">
-                    <div class="modal-col">
-                        <h4>Source</h4>
-                        <p id="modalSource"></p>
-                    </div>
-                    <div class="modal-col">
-                        <h4>Author</h4>
-                        <p id="modalAuthor"></p>
-                    </div>
+                <div class="panel-abstract">
+                    <h3>Abstract</h3>
+                    <p id="panelAbstractText">Abstract goes here...</p>
                 </div>
 
-                <h4>Abstract / Text</h4>
-                <p id="modalDesc" class="modal-desc"></p>
+                <a href="#" id="panelUrl" target="_blank" class="panel-action-btn">
+                    <i class="ph ph-link"></i> View Full Paper
+                </a>
             </div>
-        </div>
-    </div>
-
-    <!-- TERMINAL CONSOLE -->
-    <div class="terminal-container" id="terminalContainer">
-        <div class="terminal-header">
-            <span><i class="ph-fill ph-terminal"></i> Engine Logs</span>
-            <button id="toggleTerminalBtn" class="icon-btn-small"><i class="ph ph-caret-down"></i></button>
-        </div>
-        <div class="terminal-body" id="terminalBody">
-            <div class="log-line system">[SYS] BM25 Engine Initialized. Waiting for queries...</div>
-        </div>
-    </div>
+        </aside>
+    </main>
 
     <script src="/static/js/script.js"></script>
 </body>

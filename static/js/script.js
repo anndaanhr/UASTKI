@@ -1,56 +1,94 @@
 document.addEventListener("DOMContentLoaded", () => {
-    // DOM Elements
-    const searchInput = document.getElementById("searchInput");
-    const searchBtn = document.getElementById("searchBtn");
-    const resultsGrid = document.getElementById("resultsGrid");
-    const resultsCount = document.getElementById("resultsCount");
-    const emptyState = document.getElementById("emptyState");
+    // --- DOM Elements ---
+    
+    // Home State
+    const homeSearchArea = document.getElementById("homeSearchArea");
+    const searchInputHome = document.getElementById("searchInputHome");
+    const searchBtnHome = document.getElementById("searchBtnHome");
+    const clearBtnHome = document.getElementById("clearBtnHome");
+
+    // Results State (Top Header)
+    const topHeader = document.getElementById("topHeader");
+    const searchInputTop = document.getElementById("searchInputTop");
+    const searchBtnTop = document.getElementById("searchBtnTop");
+    const clearBtnTop = document.getElementById("clearBtnTop");
+    
+    // Results Area
+    const resultsArea = document.getElementById("resultsArea");
+    const resultsStats = document.getElementById("resultsStats");
+    const aiOverview = document.getElementById("aiOverview");
+    const aiSummaryText = document.getElementById("aiSummaryText");
     const loadingState = document.getElementById("loadingState");
-    const refreshEvalBtn = document.getElementById("refreshEvalBtn");
-    const bentoGrid = document.querySelector(".bento-grid");
+    const emptyState = document.getElementById("emptyState");
+    const resultsList = document.getElementById("resultsList");
 
-    // Load Evaluation Metrics on mount
-    fetchEvaluationMetrics();
+    // Knowledge Panel
+    const knowledgePanel = document.getElementById("knowledgePanel");
+    const closePanelBtn = document.getElementById("closePanelBtn");
+    
+    // --- State Variables ---
+    let isHome = true;
 
-    // Event Listeners for Search
-    searchBtn.addEventListener("click", () => performSearch(searchInput.value));
-    searchInput.addEventListener("keypress", (e) => {
-        if (e.key === "Enter") performSearch(searchInput.value);
+    // --- Event Listeners ---
+
+    // Home Input Events
+    searchInputHome.addEventListener("input", () => {
+        clearBtnHome.classList.toggle("hidden", searchInputHome.value.length === 0);
+    });
+    clearBtnHome.addEventListener("click", () => {
+        searchInputHome.value = "";
+        clearBtnHome.classList.add("hidden");
+        searchInputHome.focus();
+    });
+    searchInputHome.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") performSearch(searchInputHome.value);
+    });
+    searchBtnHome.addEventListener("click", () => performSearch(searchInputHome.value));
+
+    // Top Input Events
+    searchInputTop.addEventListener("input", () => {
+        clearBtnTop.classList.toggle("hidden", searchInputTop.value.length === 0);
+    });
+    clearBtnTop.addEventListener("click", () => {
+        searchInputTop.value = "";
+        clearBtnTop.classList.add("hidden");
+        searchInputTop.focus();
+    });
+    searchInputTop.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") performSearch(searchInputTop.value);
+    });
+    searchBtnTop.addEventListener("click", () => performSearch(searchInputTop.value));
+
+    // Panel Event
+    closePanelBtn.addEventListener("click", () => {
+        knowledgePanel.classList.add("hidden");
     });
 
-    // Refresh Evaluation
-    refreshEvalBtn.addEventListener("click", () => {
-        refreshEvalBtn.style.animation = "spin 1s linear";
-        fetchEvaluationMetrics().then(() => {
-            setTimeout(() => { refreshEvalBtn.style.animation = "none"; }, 500);
-        });
-    });
-
-    // --- API Calls ---
-
-    async function fetchEvaluationMetrics() {
-        try {
-            const response = await fetch('/api/evaluate');
-            const data = await response.json();
-            renderBentoGrid(data.summary);
-        } catch (error) {
-            console.error("Failed to load evaluation metrics:", error);
-            bentoGrid.innerHTML = `<div class="bento-item"><p style="color:red">Failed to load metrics.</p></div>`;
-        }
-    }
-
-    const queryAnalysis = document.getElementById("queryAnalysis");
+    // --- Search Logic ---
 
     async function performSearch(query) {
         if (!query.trim()) return;
 
-        // UI State: Loading
-        resultsGrid.innerHTML = "";
-        queryAnalysis.innerHTML = "";
-        queryAnalysis.classList.add("hidden");
+        // Transition from Home to Results view
+        if (isHome) {
+            homeSearchArea.classList.add("hidden");
+            document.body.classList.remove("home-state");
+            topHeader.classList.remove("hidden");
+            resultsArea.classList.remove("hidden");
+            isHome = false;
+        }
+
+        // Sync inputs
+        searchInputTop.value = query;
+        clearBtnTop.classList.remove("hidden");
+
+        // UI Loading State
+        resultsList.innerHTML = "";
         emptyState.classList.add("hidden");
+        aiOverview.classList.add("hidden");
+        knowledgePanel.classList.add("hidden");
+        resultsStats.textContent = "";
         loadingState.classList.remove("hidden");
-        resultsCount.textContent = `Searching for "${query}"...`;
 
         try {
             const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
@@ -59,167 +97,107 @@ document.addEventListener("DOMContentLoaded", () => {
             loadingState.classList.add("hidden");
             
             if (data.results && data.results.length > 0) {
-                resultsCount.textContent = `Found ${data.results.length} results`;
+                // Render Stats
+                const seconds = (data.execution_time_ms / 1000).toFixed(2);
+                resultsStats.textContent = `About ${data.results.length} results (${seconds} seconds)`;
                 
-                // Show query analysis
-                queryAnalysis.classList.remove("hidden");
-                const tokenHTML = data.query_tokens.map(t => `<span class="token-badge">${t}</span>`).join("");
-                queryAnalysis.innerHTML = `
-                    <div class="analysis-row">
-                        <span class="analysis-label">Parsed Tokens:</span>
-                        <div class="token-container">${tokenHTML || 'None'}</div>
-                    </div>
-                    <div class="analysis-row time-row">
-                        <span class="analysis-label"><i class="ph ph-clock"></i> Executed in:</span>
-                        <span>${data.execution_time_ms} ms</span>
-                    </div>
-                `;
-
+                // Render AI Overview
+                generateAIOverview(query, data.query_tokens, data.results);
+                
+                // Render Results
                 renderResults(data.results, data.query_tokens);
             } else {
-                resultsCount.textContent = "";
                 emptyState.classList.remove("hidden");
             }
         } catch (error) {
             console.error("Search failed:", error);
             loadingState.classList.add("hidden");
-            resultsCount.textContent = "An error occurred while searching.";
+            resultsStats.textContent = "An error occurred while searching.";
         }
     }
 
     // --- Render Functions ---
 
-    function renderBentoGrid(summary) {
-        // Formatting function
-        const formatScore = (val) => (val * 100).toFixed(1) + "%";
-
-        const metrics = [
-            { label: "MAP", value: formatScore(summary.MAP), desc: "Mean Average Precision over all queries" },
-            { label: "P@5", value: formatScore(summary['Avg_Precision@5']), desc: "Average Precision at top 5 results" },
-            { label: "P@10", value: formatScore(summary['Avg_Precision@10']), desc: "Average Precision at top 10 results" },
-            { label: "NDCG", value: formatScore(summary['Avg_NDCG@10']), desc: "Normalized Discounted Cumulative Gain" }
-        ];
-
-        bentoGrid.innerHTML = metrics.map(m => `
-            <div class="bento-item">
-                <div class="bento-label">${m.label}</div>
-                <div class="bento-value">${m.value}</div>
-                <div class="bento-desc">${m.desc}</div>
-            </div>
-        `).join('');
+    function generateAIOverview(query, tokens, results) {
+        const topSources = [...new Set(results.slice(0, 3).map(r => r.source || 'academic journals'))];
+        const sourceStr = topSources.join(", ");
+        
+        let aiText = `Based on your search for <b>"${query}"</b>, we found extensive literature matching key concepts like <i>${tokens.join(", ")}</i>. `;
+        aiText += `The top resulting research papers are primarily published in ${sourceStr}. `;
+        aiText += `These documents discuss various methodologies and findings related to your query.`;
+        
+        aiSummaryText.innerHTML = aiText;
+        aiOverview.classList.remove("hidden");
     }
 
-    // --- Terminal & Modal ---
-    const terminalBody = document.getElementById("terminalBody");
-    const toggleTerminalBtn = document.getElementById("toggleTerminalBtn");
-    const terminalContainer = document.getElementById("terminalContainer");
-    
-    toggleTerminalBtn.addEventListener("click", () => {
-        terminalContainer.classList.toggle("collapsed");
-        toggleTerminalBtn.innerHTML = terminalContainer.classList.contains("collapsed") ? 
-            '<i class="ph ph-caret-up"></i>' : '<i class="ph ph-caret-down"></i>';
-    });
-
-    function logToTerminal(message, type = "system") {
-        const line = document.createElement("div");
-        line.className = `log-line ${type}`;
-        line.textContent = message;
-        terminalBody.appendChild(line);
-        terminalBody.scrollTop = terminalBody.scrollHeight;
-    }
-
-    const movieModal = document.getElementById("movieModal");
-    const closeModalBtn = document.getElementById("closeModalBtn");
-    
-    function closeMyModal() {
-        movieModal.classList.remove("active");
-        setTimeout(() => movieModal.classList.add("hidden"), 300);
-    }
-
-    closeModalBtn.addEventListener("click", closeMyModal);
-    
-    // Close modal on outside click
-    movieModal.addEventListener("click", (e) => {
-        if(e.target === movieModal) closeMyModal();
-    });
-
-    function openModal(movie, tokens) {
-        document.getElementById("modalTitle").innerHTML = highlightText(movie.title, tokens);
-        document.getElementById("modalDate").textContent = movie.date || "Unknown Date";
-        
-        let licenseHTML = movie.license || "Unknown License";
-        if(movie.url) {
-            licenseHTML += ` | <a href="${movie.url}" target="_blank" style="color: inherit; text-decoration: underline;">View URL</a>`;
-        }
-        document.getElementById("modalLicense").innerHTML = licenseHTML;
-        
-        document.getElementById("modalScore").innerHTML = `<i class="ph-fill ph-target"></i> Score: ${movie.relevance_score.toFixed(3)}`;
-        
-        let authorStr = movie.author;
-        if (typeof authorStr === 'string' && authorStr.startsWith('[')) {
-            try { authorStr = JSON.parse(authorStr.replace(/'/g, '"')).join(', '); } catch(e){}
-        }
-
-        document.getElementById("modalSource").textContent = movie.source || "Unknown";
-        document.getElementById("modalAuthor").textContent = authorStr || "Unknown";
-        document.getElementById("modalDesc").innerHTML = highlightText(movie.text, tokens);
-        
-        movieModal.classList.remove("hidden");
-        // small delay to allow display:block to apply before animating opacity
-        setTimeout(() => movieModal.classList.add("active"), 10);
-    }
-
-    let currentResults = [];
-    let currentTokens = [];
-
-    // Highlight search terms in the text
     function highlightText(text, tokens) {
         if (!tokens || tokens.length === 0) return text;
         let highlighted = text;
         
         // simple case insensitive replace
         tokens.forEach(token => {
-            if (token.length > 2) { // Only highlight words > 2 chars
+            if (token.length > 2) { 
                 const regex = new RegExp(`(${token})`, 'gi');
-                highlighted = highlighted.replace(regex, '<span class="text-highlight">$1</span>');
+                highlighted = highlighted.replace(regex, '<b>$1</b>');
             }
         });
         return highlighted;
     }
 
-    function renderResults(movies, tokens) {
-        currentResults = movies;
-        currentTokens = tokens;
-        resultsGrid.innerHTML = "";
+    function renderResults(papers, tokens) {
+        resultsList.innerHTML = "";
         
-        movies.forEach((movie, index) => {
-            const card = document.createElement("div");
-            card.className = "movie-card animate-fade-up";
-            card.style.animationDelay = `${index * 0.05}s`;
+        papers.forEach(paper => {
+            const item = document.createElement("div");
+            item.className = "result-item";
             
-            card.innerHTML = `
-                <div class="movie-title">${highlightText(movie.title, tokens)}</div>
-                <div class="movie-meta">
-                    <span class="movie-year">${movie.date || 'Unknown'}</span>
-                    <span class="movie-genre">${movie.source || 'Paper'}</span>
-                    <span class="movie-score">
-                        <i class="ph-fill ph-target"></i> 
-                        ${movie.relevance_score.toFixed(2)}
-                    </span>
+            // Format Author
+            let authorStr = paper.author;
+            if (typeof authorStr === 'string' && authorStr.startsWith('[')) {
+                try { authorStr = JSON.parse(authorStr.replace(/'/g, '"')).join(', '); } catch(e){}
+            }
+
+            // Create URL display
+            let displayUrl = paper.url || "https://researcharchive.org/...";
+            if(displayUrl.length > 40) displayUrl = displayUrl.substring(0, 40) + "...";
+
+            item.innerHTML = `
+                <a href="javascript:void(0)" class="result-source">
+                    <div class="source-icon">${(paper.source || 'R')[0].toUpperCase()}</div>
+                    <div class="source-info">
+                        <div class="source-text">${paper.source || 'Research Paper'}</div>
+                        <div class="source-url">${displayUrl}</div>
+                    </div>
+                </a>
+                <a href="javascript:void(0)" class="result-title">${highlightText(paper.title, tokens)}</a>
+                <div class="result-snippet">
+                    <span class="meta-date">${paper.date || '2025'} —</span>
+                    ${highlightText(paper.text, tokens)}
                 </div>
-                <div class="movie-desc">${highlightText(movie.text, tokens)}</div>
             `;
             
-            card.addEventListener("click", () => openModal(movie, tokens));
-            resultsGrid.appendChild(card);
+            item.querySelector('.result-title').addEventListener("click", () => openKnowledgePanel(paper, authorStr));
+            
+            resultsList.appendChild(item);
         });
     }
 
-    // Override performSearch to add logs
-    const originalPerformSearch = performSearch;
-    performSearch = async function(query) {
-        logToTerminal(`[USER] Search initiated for: "${query}"`, "highlight");
-        await originalPerformSearch(query);
-        logToTerminal(`[SYS] Rendered UI completely. Ready.`, "system");
+    function openKnowledgePanel(paper, authorStr) {
+        document.getElementById("panelTitle").textContent = paper.title;
+        document.getElementById("panelAuthors").textContent = authorStr || "Unknown";
+        document.getElementById("panelDate").textContent = paper.date || "Unknown Date";
+        document.getElementById("panelSource").textContent = paper.source || "Unknown";
+        document.getElementById("panelLicense").textContent = paper.license || "Standard";
+        document.getElementById("panelAbstractText").textContent = paper.text;
+        
+        const urlBtn = document.getElementById("panelUrl");
+        if(paper.url) {
+            urlBtn.href = paper.url;
+            urlBtn.classList.remove("hidden");
+        } else {
+            urlBtn.classList.add("hidden");
+        }
+        
+        knowledgePanel.classList.remove("hidden");
     }
 });
