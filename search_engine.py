@@ -6,15 +6,21 @@ untuk meningkatkan akurasi pencarian dokumen berita Timur Tengah.
 """
 
 import numpy as np
-import torch
+import os
 
-# Fallback for compatibility: newer transformers versions expect torch.float8_e8m0fnu
-if not hasattr(torch, "float8_e8m0fnu"):
-    setattr(torch, "float8_e8m0fnu", torch.float32)
+# Graceful torch import — required by sentence-transformers
+try:
+    import torch
+    # Fallback for compatibility: newer transformers versions expect torch.float8_e8m0fnu
+    if not hasattr(torch, "float8_e8m0fnu"):
+        setattr(torch, "float8_e8m0fnu", torch.float32)
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    print("[WARNING] torch not available — BERT scoring disabled, TF-IDF only mode.")
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-from sentence_transformers import SentenceTransformer
 from dataset import clean_text
 
 # =========================================================
@@ -22,7 +28,10 @@ from dataset import clean_text
 # =========================================================
 BERT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 W_TFIDF = 0.35
-W_BERT = 0.65
+W_BERT  = 0.65
+
+# Path untuk cache embedding BERT (agar tidak dihitung ulang setiap restart)
+BERT_CACHE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bert_embeddings.npy")
 
 
 class HybridSearchEngine:
@@ -33,7 +42,15 @@ class HybridSearchEngine:
         :param df: DataFrame yang sudah memiliki kolom 'processed_text' dan 'content'.
         """
         self.df = df.copy()
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.bert_model = None
+        self.bert_emb = None
+
+        # Tentukan device
+        if TORCH_AVAILABLE:
+            import torch as _torch
+            self.device = "cuda" if _torch.cuda.is_available() else "cpu"
+        else:
+            self.device = "cpu"
         print(f"[ENGINE] Device: {self.device.upper()}")
 
         # Pastikan kolom content tersedia (rename jika perlu)
@@ -50,8 +67,31 @@ class HybridSearchEngine:
         print(f"[ENGINE] TF-IDF matrix shape: {self.tfidf_matrix.shape}")
 
         # === BERT Embeddings ===
+        if TORCH_AVAILABLE:
+            self._load_or_compute_bert_embeddings()
+        else:
+            print("[ENGINE] Berjalan dalam mode TF-IDF Only (torch tidak tersedia).")
+
+        # Simpan dokumen sebagai list of dicts untuk akses cepat
+        self.documents = self.df.to_dict('records')
+        print("[ENGINE] Hybrid Search Engine siap!")
+
+    def _load_or_compute_bert_embeddings(self):
+        """Load BERT embeddings dari cache .npy jika ada, atau hitung ulang dan simpan."""
+        from sentence_transformers import SentenceTransformer
+
         print("[ENGINE] Memuat model Sentence-BERT ...")
         self.bert_model = SentenceTransformer(BERT_MODEL, device=self.device)
+
+        # Cek apakah cache embeddings sudah ada dan ukurannya cocok
+        if os.path.exists(BERT_CACHE_PATH):
+            cached = np.load(BERT_CACHE_PATH)
+            if cached.shape[0] == len(self.df):
+                print(f"[ENGINE] Memuat BERT embeddings dari cache: {BERT_CACHE_PATH}")
+                self.bert_emb = cached
+                return
+            else:
+                print(f"[ENGINE] Cache tidak sesuai ({cached.shape[0]} vs {len(self.df)} dokumen), menghitung ulang ...")
 
         print("[ENGINE] Menghitung BERT embeddings untuk seluruh corpus ...")
         semantic_inputs = (
@@ -68,9 +108,9 @@ class HybridSearchEngine:
         )
         print(f"[ENGINE] BERT embeddings shape: {self.bert_emb.shape}")
 
-        # Simpan dokumen sebagai list of dicts untuk akses cepat
-        self.documents = self.df.to_dict('records')
-        print("[ENGINE] Hybrid Search Engine siap!")
+        # Simpan ke cache untuk restart berikutnya
+        np.save(BERT_CACHE_PATH, self.bert_emb)
+        print(f"[ENGINE] BERT embeddings disimpan ke cache: {BERT_CACHE_PATH}")
 
     def search(self, query, top_k=10):
         """
@@ -92,18 +132,25 @@ class HybridSearchEngine:
         q_tfidf = self.tfidf_vec.transform([query_proc])
         tfidf_scores = cosine_similarity(q_tfidf, self.tfidf_matrix).flatten()
 
-        # === BERT Score ===
-        q_bert = self.bert_model.encode(
-            [query], normalize_embeddings=True, device=self.device
-        )
-        bert_scores = np.dot(self.bert_emb, q_bert.T).flatten()
+        # === BERT Score (jika tersedia) ===
+        if self.bert_model is not None and self.bert_emb is not None:
+            q_bert = self.bert_model.encode(
+                [query], normalize_embeddings=True, device=self.device
+            )
+            bert_scores = np.dot(self.bert_emb, q_bert.T).flatten()
+            bert_scores = (bert_scores + 1) / 2  # Normalize dari [-1,1] ke [0,1]
 
-        # === Normalisasi & Gabungkan ===
-        if tfidf_scores.max() > 0:
-            tfidf_scores = tfidf_scores / tfidf_scores.max()
-        bert_scores = (bert_scores + 1) / 2  # Normalize dari [-1,1] ke [0,1]
+            # === Normalisasi & Gabungkan ===
+            if tfidf_scores.max() > 0:
+                tfidf_scores = tfidf_scores / tfidf_scores.max()
+            combined = W_TFIDF * tfidf_scores + W_BERT * bert_scores
+        else:
+            # TF-IDF only fallback
+            if tfidf_scores.max() > 0:
+                tfidf_scores = tfidf_scores / tfidf_scores.max()
+            combined = tfidf_scores
+            bert_scores = np.zeros_like(tfidf_scores)
 
-        combined = W_TFIDF * tfidf_scores + W_BERT * bert_scores
         top_idx = np.argsort(combined)[::-1][:top_k]
 
         results_list = []

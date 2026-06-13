@@ -1,9 +1,15 @@
 fastapi
-uvicorn
+uvicorn[standard]
 jinja2
 python-multipart
 rank-bm25
 nltk
 pandas
+scikit-learn
+numpy
 dagshub
 mlflow
+requests
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.2.2+cpu
+sentence-transformers==3.0.1
