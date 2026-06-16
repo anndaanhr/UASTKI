@@ -23,14 +23,10 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from dataset import clean_text
 
-# =========================================================
-# KONFIGURASI
-# =========================================================
 BERT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 W_TFIDF = 0.35
 W_BERT  = 0.65
 
-# Path untuk cache embedding BERT (agar tidak dihitung ulang setiap restart)
 BERT_CACHE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bert_embeddings.npy")
 
 
@@ -45,7 +41,6 @@ class HybridSearchEngine:
         self.bert_model = None
         self.bert_emb = None
 
-        # Tentukan device
         if TORCH_AVAILABLE:
             import torch as _torch
             self.device = "cuda" if _torch.cuda.is_available() else "cpu"
@@ -53,7 +48,6 @@ class HybridSearchEngine:
             self.device = "cpu"
         print(f"[ENGINE] Device: {self.device.upper()}")
 
-        # Pastikan kolom content tersedia (rename jika perlu)
         if 'content' in self.df.columns and 'content_raw' not in self.df.columns:
             self.df = self.df.rename(columns={'content': 'content_raw'})
         elif 'content_raw' not in self.df.columns:
