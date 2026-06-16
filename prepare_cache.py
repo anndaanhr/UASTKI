@@ -22,4 +22,10 @@ print(f"Dataset: {len(df):,} dokumen")
 # Step 2: Preprocess full dataset (tanpa sampling)
 df_proc = load_and_preprocess()
 print(f"Preprocessed: {len(df_proc):,} dokumen")
-print("Cache dataset berhasil dibuat dan disimpan!")
+
+# Step 3: Compute BERT Embeddings cache
+from search_engine import HybridSearchEngine
+print("Mempersiapkan cache BERT Embeddings...")
+engine = HybridSearchEngine(df_proc)
+
+print("Cache dataset dan embeddings berhasil dibuat dan disimpan!")
