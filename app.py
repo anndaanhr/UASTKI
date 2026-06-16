@@ -21,9 +21,21 @@ engine = None
 async def lifespan(app: FastAPI):
     global engine
     print("Loading dataset and initializing Hybrid TF-IDF + BERT Engine...")
-    print("WARNING: First boot may take 30-60 seconds to download model & compute embeddings...")
-    # Load full dataset (no sample_size = full data)
-    df = load_and_preprocess()
+    
+    import os
+    from dataset import download_dataset
+    
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    TFIDF_VEC_PATH = os.path.join(BASE_DIR, "tfidf_vectorizer.pkl")
+    TFIDF_MATRIX_PATH = os.path.join(BASE_DIR, "tfidf_matrix.npz")
+    
+    if os.path.exists(TFIDF_VEC_PATH) and os.path.exists(TFIDF_MATRIX_PATH):
+        print("[LIFESPAN] Precomputed files found. Loading raw dataset (bypassing heavy preprocessing)...")
+        df = download_dataset()
+    else:
+        print("[LIFESPAN] Precomputed files NOT found. Falling back to downloading & preprocessing...")
+        df = load_and_preprocess()
+        
     engine = HybridSearchEngine(df)
     print("Hybrid Engine is ready!")
     yield

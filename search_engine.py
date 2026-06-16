@@ -3,10 +3,16 @@
 Search Engine Module — Hybrid TF-IDF + Sentence-BERT
 Sistem pencarian hybrid yang menggabungkan TF-IDF dan Sentence-BERT
 untuk meningkatkan akurasi pencarian dokumen berita Timur Tengah.
+
+Mode operasi:
+  - PRECOMPUTED (deploy): Load artefak dari file .pkl/.npz/.npy
+  - COMPUTE (lokal): Hitung TF-IDF & BERT dari awal (fallback)
 """
 
 import numpy as np
 import os
+import gc
+import pickle
 
 # Graceful torch import — required by sentence-transformers
 try:
@@ -21,19 +27,24 @@ except ImportError:
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from scipy import sparse
 from dataset import clean_text
 
 BERT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 W_TFIDF = 0.35
 W_BERT  = 0.65
 
-BERT_CACHE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bert_embeddings.npy")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TFIDF_VEC_PATH    = os.path.join(BASE_DIR, "tfidf_vectorizer.pkl")
+TFIDF_MATRIX_PATH = os.path.join(BASE_DIR, "tfidf_matrix.npz")
+BERT_CACHE_PATH   = os.path.join(BASE_DIR, "bert_embeddings.npy")
 
 
 class HybridSearchEngine:
     def __init__(self, df):
         """
         Inisialisasi Hybrid Search Engine (TF-IDF + Sentence-BERT).
+        Otomatis mendeteksi apakah artefak precomputed tersedia.
 
         :param df: DataFrame yang sudah memiliki kolom 'processed_text' dan 'content'.
         """
@@ -53,58 +64,78 @@ class HybridSearchEngine:
         elif 'content_raw' not in self.df.columns:
             self.df['content_raw'] = ''
 
-        # === TF-IDF Indexing ===
-        print("[ENGINE] Membangun indeks TF-IDF ...")
-        self.texts = self.df['processed_text'].fillna("").tolist()
-        self.tfidf_vec = TfidfVectorizer(max_features=20_000, ngram_range=(1, 2))
-        self.tfidf_matrix = self.tfidf_vec.fit_transform(self.texts)
-        print(f"[ENGINE] TF-IDF matrix shape: {self.tfidf_matrix.shape}")
+        # === TF-IDF: Load precomputed or compute ===
+        self._init_tfidf()
 
-        # === BERT Embeddings ===
-        if TORCH_AVAILABLE:
-            self._load_or_compute_bert_embeddings()
-        else:
-            print("[ENGINE] Berjalan dalam mode TF-IDF Only (torch tidak tersedia).")
+        # === BERT: Load precomputed embeddings ===
+        self._init_bert()
 
         # Simpan dokumen sebagai list of dicts untuk akses cepat
         self.documents = self.df.to_dict('records')
         print("[ENGINE] Hybrid Search Engine siap!")
 
-    def _load_or_compute_bert_embeddings(self):
-        """Load BERT embeddings dari cache .npy jika ada, atau hitung ulang dan simpan."""
-        from sentence_transformers import SentenceTransformer
+    def _init_tfidf(self):
+        """Load TF-IDF dari file precomputed, atau hitung dari awal."""
+        if os.path.exists(TFIDF_VEC_PATH) and os.path.exists(TFIDF_MATRIX_PATH):
+            # === PRECOMPUTED MODE ===
+            print(f"[ENGINE] Memuat TF-IDF vectorizer dari: {TFIDF_VEC_PATH}")
+            with open(TFIDF_VEC_PATH, "rb") as f:
+                self.tfidf_vec = pickle.load(f)
 
-        print("[ENGINE] Memuat model Sentence-BERT ...")
-        self.bert_model = SentenceTransformer(BERT_MODEL, device=self.device)
+            print(f"[ENGINE] Memuat TF-IDF matrix dari: {TFIDF_MATRIX_PATH}")
+            self.tfidf_matrix = sparse.load_npz(TFIDF_MATRIX_PATH)
+            print(f"[ENGINE] TF-IDF matrix shape: {self.tfidf_matrix.shape}")
 
-        # Cek apakah cache embeddings sudah ada dan ukurannya cocok
+            # Validasi: jumlah baris harus sesuai dengan jumlah dokumen
+            if self.tfidf_matrix.shape[0] != len(self.df):
+                print(f"[ENGINE][WARNING] TF-IDF matrix rows ({self.tfidf_matrix.shape[0]}) "
+                      f"!= documents ({len(self.df)}). Recomputing...")
+                self._compute_tfidf()
+        else:
+            # === COMPUTE MODE (fallback) ===
+            self._compute_tfidf()
+
+    def _compute_tfidf(self):
+        """Hitung TF-IDF dari awal (mode lokal/fallback)."""
+        print("[ENGINE] Membangun indeks TF-IDF ...")
+        self.texts = self.df['processed_text'].fillna("").tolist()
+        self.tfidf_vec = TfidfVectorizer(max_features=10_000, ngram_range=(1, 2))
+        self.tfidf_matrix = self.tfidf_vec.fit_transform(self.texts)
+        print(f"[ENGINE] TF-IDF matrix shape: {self.tfidf_matrix.shape}")
+        gc.collect()
+
+    def _init_bert(self):
+        """Load BERT embeddings precomputed. Model di-load lazy saat query pertama."""
+        # Load precomputed embeddings jika ada
         if os.path.exists(BERT_CACHE_PATH):
             cached = np.load(BERT_CACHE_PATH)
             if cached.shape[0] == len(self.df):
                 print(f"[ENGINE] Memuat BERT embeddings dari cache: {BERT_CACHE_PATH}")
                 self.bert_emb = cached
-                return
             else:
-                print(f"[ENGINE] Cache tidak sesuai ({cached.shape[0]} vs {len(self.df)} dokumen), menghitung ulang ...")
+                print(f"[ENGINE][WARNING] BERT cache mismatch ({cached.shape[0]} vs {len(self.df)})")
+                self.bert_emb = None
+        else:
+            print("[ENGINE] BERT embeddings cache tidak ditemukan.")
+            self.bert_emb = None
 
-        print("[ENGINE] Menghitung BERT embeddings untuk seluruh corpus ...")
-        semantic_inputs = (
-            self.df['title'].fillna('') + ". " +
-            self.df['content_raw'].fillna('').str[:500]
-        ).tolist()
+        # BERT model di-load lazy — TIDAK saat startup
+        # Ini menghemat RAM karena model hanya di-load saat ada query pertama
+        self.bert_model = None  # akan di-load di _get_bert_model()
+        gc.collect()
 
-        self.bert_emb = self.bert_model.encode(
-            semantic_inputs,
-            batch_size=32,
-            show_progress_bar=True,
-            convert_to_numpy=True,
-            normalize_embeddings=True,
-        )
-        print(f"[ENGINE] BERT embeddings shape: {self.bert_emb.shape}")
-
-        # Simpan ke cache untuk restart berikutnya
-        np.save(BERT_CACHE_PATH, self.bert_emb)
-        print(f"[ENGINE] BERT embeddings disimpan ke cache: {BERT_CACHE_PATH}")
+    def _get_bert_model(self):
+        """Lazy-load BERT model saat pertama kali dibutuhkan."""
+        if self.bert_model is None and TORCH_AVAILABLE and self.bert_emb is not None:
+            try:
+                from sentence_transformers import SentenceTransformer
+                print("[ENGINE] Lazy-loading Sentence-BERT model untuk query encoding ...")
+                self.bert_model = SentenceTransformer(BERT_MODEL, device=self.device)
+                print("[ENGINE] Sentence-BERT model siap!")
+            except Exception as e:
+                print(f"[ENGINE][WARNING] Gagal load BERT model: {e}")
+                self.bert_model = None
+        return self.bert_model
 
     def search(self, query, top_k=10):
         """
@@ -126,9 +157,10 @@ class HybridSearchEngine:
         q_tfidf = self.tfidf_vec.transform([query_proc])
         tfidf_scores = cosine_similarity(q_tfidf, self.tfidf_matrix).flatten()
 
-        # === BERT Score (jika tersedia) ===
-        if self.bert_model is not None and self.bert_emb is not None:
-            q_bert = self.bert_model.encode(
+        # === BERT Score (lazy-load model jika belum ada) ===
+        bert_model = self._get_bert_model()
+        if bert_model is not None and self.bert_emb is not None:
+            q_bert = bert_model.encode(
                 [query], normalize_embeddings=True, device=self.device
             )
             bert_scores = np.dot(self.bert_emb, q_bert.T).flatten()
